@@ -100,10 +100,7 @@ int getArgument(char *buf) {
 char targetStr[64]={'\0'};
 char bldDirStr[1024]={'\0'};
 char compilerStr[1024]={'\0'};
-char compilerArgsStr[2048]={'\0'};
 char linkerStr[1024]={'\0'};
-char linkerArgsStr[2048]={'\0'};
-char includesStr[2048]={'\0'};
 
 
 int numSources;
@@ -118,6 +115,19 @@ typedef struct SrcPtr_ {
 SrcPtr baseSrc = {NULL, NULL};
 pSrcPtr lastSrcPtr=&baseSrc;
 
+SrcPtr incSrc = {NULL, NULL};
+pSrcPtr lastIncPtr = &incSrc;
+
+SrcPtr libsSrc = {NULL, NULL};
+pSrcPtr lastLibsPtr = &libsSrc;
+
+SrcPtr cmplSrc = {NULL, NULL};
+pSrcPtr lastCmplPtr = &cmplSrc;
+
+SrcPtr lnkSrc = {NULL, NULL};
+pSrcPtr lastLnkPtr = &lnkSrc;
+
+
 int getNextToken(char *ptr) {
 
     int n = fscanf(in, "%s",ptr);
@@ -128,17 +138,17 @@ int getNextToken(char *ptr) {
 }
 
 
-void putSrc(char *str) {
+void putSrc(pSrcPtr *psPtr, char *str) {
+
+    pSrcPtr ps=*psPtr;
 
     int n = strlen(str);
     char *nStr = new char [n+1];
     strncpy(nStr, str, n);
 
-    lastSrcPtr->ptr = nStr;
-    lastSrcPtr->next = new SrcPtr;
-    lastSrcPtr = lastSrcPtr->next;
-
-    numSources++;
+    ps->ptr = nStr;
+    ps->next = new SrcPtr;
+    *psPtr = ps->next;
 
 }
 
@@ -150,7 +160,8 @@ int getAllSources() {
 
     while(1) {
         if(getNextToken(src) == 0)  break;
-        putSrc(src);
+        putSrc(&lastSrcPtr, src);
+        numSources++;
     }
 
     pSrcPtr ps = &baseSrc;
@@ -162,6 +173,28 @@ int getAllSources() {
     return r;
 }
 
+int getAllArguments(pSrcPtr *ptr) {
+    int r = 0;
+    char src[256];
+
+    pSrcPtr ps= *ptr;
+    while(1) {
+        if(getNextToken(src) == 0)  break;
+        putSrc(&ps, src);
+    }
+
+    return r;
+
+}
+
+void fprintList(pSrcPtr p) {
+    while(1) {
+        if(p->ptr == NULL) break;
+        fprintf(out,"%s ", p->ptr);
+        p = p->next;
+    }
+    fprintLine();
+}
 
 int getPrimitives() {
 
@@ -178,24 +211,29 @@ int getPrimitives() {
         if( getArgument(compilerStr) == 0) break;
 
         if( getString(":CompilerArguments:") == 0) break;
-        getArgument(compilerArgsStr);
+        getAllArguments(&lastCmplPtr);
 
         if( getString(":Linker:") == 0) break;
         if( getArgument(linkerStr) == 0) break;
 
         if( getString(":LinkerArguments:") == 0) break;
-        getArgument(linkerArgsStr);
+        getAllArguments(&lastLnkPtr);
 
         if( getString(":Includes:") == 0) break;
-        getArgument(includesStr);
+        getAllArguments(&lastIncPtr);
+
+        if( getString(":Libraries:") == 0) break;
+        getAllArguments(&lastLibsPtr);
 
         fprintf(out,"TARGET=%s\n", targetStr);
         fprintf(out,"BUILDDIR=%s\n", bldDirStr);
         fprintf(out,"COMPILER=%s\n", compilerStr);
-        fprintf(out,"CMPLARGS=%s\n", compilerArgsStr);
-        fprintf(out,"INCLUDES=%s\n", includesStr);
         fprintf(out,"LINKER=%s\n", linkerStr);
-        fprintf(out,"LNKARGS=%s\n", linkerArgsStr);
+
+        fprintf(out,"CMPLARGS= "); fprintList(&cmplSrc);
+        fprintf(out,"INCLUDES= "); fprintList(&incSrc);
+        fprintf(out,"LNKARGS= "); fprintList(&lnkSrc);
+        fprintf(out,"LIBRARIES= "); fprintList(&libsSrc);
 
 
         if( getString(":Sources:") == 0) break;
@@ -229,7 +267,8 @@ char* getIncludeFileFrom(FILE *fp) {
             exit(0);
         }
 
-        if( (ch == '"') || (ch=='<')) break;
+        if( (ch == '"')) break;
+        if( (ch == '<')) return NULL;
     }
 
     do {
@@ -245,7 +284,7 @@ char* getIncludeFileFrom(FILE *fp) {
             printf("Abort: EOF while scanning\n");
             exit(0);
         }
-        if( (ch == '"') || (ch=='>')) break;
+        if( (ch == '"')) break;
         if(!nonspace(ch)) continue;
         buf[ind++] = ch;
 
@@ -257,6 +296,7 @@ char* getIncludeFileFrom(FILE *fp) {
 
 int scanDependencies(char *src) {
 
+    printf("Scanning dependencies in %s\n", src);
 
     FILE *fp = fopen(src, "rt");
     if(!fp) {
@@ -273,6 +313,7 @@ int scanDependencies(char *src) {
 
         if(strcmp(buf,"#include") == 0) {
             char *ptr = getIncludeFileFrom(fp);
+            if( ptr == NULL) continue;
             fprintf(out," %s ", ptr);
             scanDependencies(ptr);
         }
@@ -292,7 +333,10 @@ int addSrcDependencyAction(char *src) {
     fprintLine();
     fprintf(out, "%s%s%s.o: %s", bldDirStr,delim,src,src);
 
-    if( scanDependencies(src) == 0) return 0;
+    scanDependencies(src);
+
+    fprintLine();
+    fprintf(out, "\t$(COMPILER) $(CMPLARGS) $(INCLUDES) -c %s -o %s%s%s.o\n\n", src, bldDirStr,delim,src);
 
     return 1;
 }
@@ -303,7 +347,7 @@ int addTargets() {
 
     fputs("\n", out);
 
-    fprintf(out,"%s: %s ", targetStr, bldDirStr);
+    fprintf(out,"%s/%s: %s ",bldDirStr, targetStr, bldDirStr);
 
 
     pSrcPtr ps = &baseSrc;
@@ -315,7 +359,7 @@ int addTargets() {
     }
 
     fprintLine();
-    fprintf(out, "\t$(LINKER) %s ", linkerArgsStr);
+    fprintf(out, "\t$(LINKER) $(LNKARGS) $(LIBRARIES) ");
     ps = &baseSrc;
     for(int i=0;i<numSources;i++) {
         char buf[256];
@@ -337,7 +381,6 @@ int addTargets() {
 
     ps = &baseSrc;
     for(int i=0;i<numSources;i++) {
-        printf("Scanning dependencies in %s\n", ps->ptr);
         if( addSrcDependencyAction(ps->ptr) == 0) return 1;
         ps=ps->next;
     }
