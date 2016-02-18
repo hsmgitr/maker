@@ -17,6 +17,21 @@ void fprintLine() {
     fputs("\n", out);
 }
 
+char* getDirectory(char *src) {
+    static char buf[256];
+
+    int n = strlen(src)-1;
+    while(n--) {
+        if(src[n]=='/') break;
+    }
+    if(n>=0) {
+        strncpy(buf,src,n);
+        buf[n] = 0;
+        return buf;
+    }
+    return NULL;
+}
+
 void fprintStrs(const char *args[]) {
 
     int i=0;
@@ -289,7 +304,7 @@ char* getIncludeFileFrom(FILE *fp) {
         buf[ind++] = ch;
 
     } while(1);
-
+    buf[ind++] = 0;
     return buf;
 }
 
@@ -314,8 +329,17 @@ int scanDependencies(char *src) {
         if(strcmp(buf,"#include") == 0) {
             char *ptr = getIncludeFileFrom(fp);
             if( ptr == NULL) continue;
-            fprintf(out," %s ", ptr);
-            scanDependencies(ptr);
+            char *dirPtr = getDirectory(ptr);
+            if(dirPtr==NULL) {
+                dirPtr = getDirectory(src);
+                sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
+            }
+            else {
+                sprintf(buf,"%s", ptr);
+            }
+
+            fprintf(out," %s ",buf);
+            scanDependencies(buf);
         }
 
     }
@@ -336,6 +360,8 @@ int addSrcDependencyAction(char *src) {
     scanDependencies(src);
 
     fprintLine();
+    char *ptr = getDirectory(src);
+    if(ptr) fprintf(out, "\t@mkdir -p %s%s%s\n",bldDirStr,delim, ptr );
     fprintf(out, "\t$(COMPILER) $(CMPLARGS) $(INCLUDES) -c %s -o %s%s%s.o\n\n", src, bldDirStr,delim,src);
 
     return 1;
@@ -359,7 +385,7 @@ int addTargets() {
     }
 
     fprintLine();
-    fprintf(out, "\t$(LINKER) $(LNKARGS) $(LIBRARIES) ");
+    fprintf(out, "\t$(LINKER) ");
     ps = &baseSrc;
     for(int i=0;i<numSources;i++) {
         char buf[256];
@@ -368,7 +394,7 @@ int addTargets() {
         fputs(buf,out);
     }
 
-    fprintf(out, " -o %s%s%s ",bldDirStr,delim,targetStr);
+    fprintf(out, " -o %s%s%s $(LNKARGS) $(LIBRARIES) ",bldDirStr,delim,targetStr);
 
     fprintLine(); fprintLine();
 
@@ -400,6 +426,8 @@ int mparser(FILE *cf, FILE *of) {
 
         if( addTargets()) break;
 
+        fprintLine();
+        fprintf(out, "clean:\n\trm -rf %s\n\n", bldDirStr);
         res = 0;
         break;
     }
