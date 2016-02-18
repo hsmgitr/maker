@@ -5,9 +5,27 @@
 
 #include "mparser.h"
 
+
+const char* delim = "/";
+
+
 FILE *in, *out;
 char cbuf[4096];
 
+
+void fprintLine() {
+    fputs("\n", out);
+}
+
+void fprintStrs(const char *args[]) {
+
+    int i=0;
+    while(1) {
+        if(args[i] == NULL) break;
+        fprintf(out,"%s ",args[i++] );
+    }
+
+}
 
 int getString(const char *str) {
 
@@ -196,6 +214,137 @@ int getPrimitives() {
     return r;
 }
 
+
+char* getIncludeFileFrom(FILE *fp) {
+
+    static char buf[128];
+    int ind = 0;
+    char ch;
+
+
+    while(1) {
+        ch = fgetc(fp);
+        if(feof(fp)) {
+            printf("Abort: EOF while scanning\n");
+            exit(0);
+        }
+
+        if( (ch == '"') || (ch=='<')) break;
+    }
+
+    do {
+        ch = fgetc(fp);
+        if(feof(fp)) return 0;
+        if(nonspace(ch)) break;
+    } while(1);
+
+    buf[ind++] = ch;
+    do {
+        ch = fgetc(fp);
+        if(feof(fp)) {
+            printf("Abort: EOF while scanning\n");
+            exit(0);
+        }
+        if( (ch == '"') || (ch=='>')) break;
+        if(!nonspace(ch)) continue;
+        buf[ind++] = ch;
+
+    } while(1);
+
+    return buf;
+}
+
+
+int scanDependencies(char *src) {
+
+
+    FILE *fp = fopen(src, "rt");
+    if(!fp) {
+        printf("Abort: cannot find %s\n",src );
+        return 0;
+    }
+
+
+
+    while(1) {
+        char buf[128];
+        int n = fscanf(fp,"%s",buf);
+        if( n <= 0) break;
+
+        if(strcmp(buf,"#include") == 0) {
+            char *ptr = getIncludeFileFrom(fp);
+            fprintf(out," %s ", ptr);
+            scanDependencies(ptr);
+        }
+
+    }
+
+    fclose(fp);
+    return 0;
+}
+
+
+
+
+
+int addSrcDependencyAction(char *src) {
+
+    fprintLine();
+    fprintf(out, "%s%s%s.o: %s", bldDirStr,delim,src,src);
+
+    if( scanDependencies(src) == 0) return 0;
+
+    return 1;
+}
+
+
+
+int addTargets() {
+
+    fputs("\n", out);
+
+    fprintf(out,"%s: %s ", targetStr, bldDirStr);
+
+
+    pSrcPtr ps = &baseSrc;
+    for(int i=0;i<numSources;i++) {
+        char buf[256];
+        sprintf(buf, "%s%s%s.o ", bldDirStr,delim,ps->ptr);
+        fputs(buf,out);
+        ps = ps->next;
+    }
+
+    fprintLine();
+    fprintf(out, "\t$(LINKER) %s ", linkerArgsStr);
+    ps = &baseSrc;
+    for(int i=0;i<numSources;i++) {
+        char buf[256];
+        sprintf(buf, " %s%s%s.o ", bldDirStr,delim,ps->ptr);
+        ps=ps->next;
+        fputs(buf,out);
+    }
+
+    fprintf(out, " -o %s%s%s ",bldDirStr,delim,targetStr);
+
+    fprintLine(); fprintLine();
+
+
+    fprintf(out,"%s: \n", bldDirStr);
+    const char *args[] = {"\tmkdir"," -p ", bldDirStr, NULL};
+    fprintStrs(args);
+    fprintLine(); fprintLine();
+
+
+    ps = &baseSrc;
+    for(int i=0;i<numSources;i++) {
+        printf("Scanning dependencies in %s\n", ps->ptr);
+        if( addSrcDependencyAction(ps->ptr) == 0) return 1;
+        ps=ps->next;
+    }
+
+    return 0;
+}
+
 int mparser(FILE *cf, FILE *of) {
 
     int res=1;
@@ -206,10 +355,13 @@ int mparser(FILE *cf, FILE *of) {
     while(1) {
         if( getPrimitives() ) break;
 
+        if( addTargets()) break;
 
         res = 0;
         break;
     }
+
+    fprintLine();
 
     if(res) {
         printf("Error in mparser\n");
