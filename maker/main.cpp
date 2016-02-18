@@ -4,10 +4,18 @@
 
 #include "mparser.h"
 
+const char *defFile = "Target: \nBuildDirectory: \nCompiler: \nCompilerArguments: \nIncludes: \nLinker: \nLinkerArguments: \nSources: \n";
+
 int main(int argc, char *argv[]) {
 
     if(argc < 2) {
         printf("usage: maker maker-input-file\n");
+        FILE *f = fopen("sample.template","wt");
+        if(f) {
+            fprintf(f,"%s",defFile);
+            printf("A sample template is generated as sample.template\n");
+            fclose(f);
+        }
         return 1;
     }
 

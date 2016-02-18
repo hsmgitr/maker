@@ -36,6 +36,8 @@ char compilerStr[1024];
 char compilerArgsStr[2048];
 char linkerStr[1024];
 char linkerArgsStr[2048];
+char includesStr[2048];
+
 
 
 int getPrimitives() {
@@ -54,11 +56,14 @@ int getPrimitives() {
         if( getArgument(linkerStr) == 0) break;
         if( getString("LinkerArguments:") == 0) break;
         if( getArgument(linkerArgsStr) == 0) break;
+        if( getString("Includes:") == 0) break;
+        if( getArgument(includesStr) == 0) break;
 
         fprintf(out,"TARGET\t\t\t=%s\n", targetStr);
         fprintf(out,"BUILDDIR\t\t\t=%s\n", bldDirStr);
         fprintf(out,"COMPILER\t\t\t=%s\n", compilerStr);
         fprintf(out,"CMPLARGS\t\t\t=%s\n", compilerArgsStr);
+        fprintf(out,"INCLUDES\t\t\t=%s\n", includesStr);
         fprintf(out,"LINKER\t\t\t=%s\n", linkerStr);
         fprintf(out,"LNKARGS\t\t\t=%s\n", linkerArgsStr);
 
