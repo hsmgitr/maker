@@ -4,7 +4,11 @@
 
 #include "mparser.h"
 
-const char *defFile = ":Target: \n:BuildDirectory: \n:Compiler: \n:CompilerArguments: \n:Includes: \n:Linker: \n:LinkerArguments: \n:Sources: \n";
+const char *defFile =
+":Target: \n:Envronment: \n:BuildDirectory: \n:Compiler: \n"
+":CompilerArguments: \n:Includes: \n:Linker: \n"
+":LinkerArguments: \n:libraries: \n:Sources: \n";
+
 
 int main(int argc, char *argv[]) {
 

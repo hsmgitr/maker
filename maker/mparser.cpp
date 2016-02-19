@@ -6,6 +6,7 @@
 #include "mparser.h"
 
 
+const char *delim = "/";
 
 
 FILE *in, *out;
@@ -75,7 +76,8 @@ int nonspace(char ch) {
 
 }
 
-int getLine() {
+
+int getToken( ) {
 
     int ind = 0;
     char ch;
@@ -100,9 +102,34 @@ int getLine() {
     return 1;
 }
 
+int getLine( ) {
+
+    int ind = 0;
+    char ch;
+
+    do {
+        ch = fgetc(in);
+        if(feof(in)) return 0;
+        if(nonspace(ch)) break;
+    } while(1);
+
+    cbuf[ind++] = ch;
+
+    do {
+        ch = fgetc(in);
+        if(feof(in)) return 0;
+        if((ch=='\r') || (ch=='\n')) break;
+        cbuf[ind++] = ch;
+    } while(1);
+
+    cbuf[ind] = '\0';
+
+    return 1;
+}
+
 int getArgument(char *buf) {
 
-    if( !getLine() ) return 0;
+    if( !getToken() ) return 0;
 
     int n = strlen(cbuf);
     if(n == 0) return 0;
@@ -142,6 +169,9 @@ pSrcPtr lastCmplPtr = &cmplSrc;
 
 SrcPtr lnkSrc = {NULL, NULL};
 pSrcPtr lastLnkPtr = &lnkSrc;
+
+SrcPtr envSrc = {NULL, NULL};
+pSrcPtr lastEnvPtr = &envSrc;
 
 
 int getNextToken(char *ptr) {
@@ -189,6 +219,24 @@ int getAllSources() {
     return r;
 }
 
+int getAllLines(pSrcPtr *ptr) {
+    int r = 0;
+    char src[256];
+
+    pSrcPtr ps= *ptr;
+    while(1) {
+        if(getLine() == 0)  break;
+
+        int n = strlen(cbuf);
+        if(n == 0) return 0;
+        if(cbuf[0]==':') return 0;
+
+        putSrc(&ps, cbuf);
+    }
+
+    return r;
+}
+
 int getAllArguments(pSrcPtr *ptr) {
     int r = 0;
     char src[256];
@@ -217,6 +265,8 @@ int getPrimitives() {
 
     int r = 1;
     while(1) {
+
+
         if( getString(":Target:") == 0) break;
         if( getArgument(targetStr) == 0) break;
 
@@ -241,6 +291,15 @@ int getPrimitives() {
         if( getString(":Libraries:") == 0) break;
         getAllArguments(&lastLibsPtr);
 
+        if( getString(":Environment:") == 0) {
+            printf("Info: No additional environment setup\n");
+        }
+        else {
+            getAllLines(&lastEnvPtr);
+            printf("Info: Adding environment setup \n");
+
+        }
+
         fprintf(out,"TARGET=%s\n", targetStr);
         fprintf(out,"BUILDDIR=%s\n", bldDirStr);
         fprintf(out,"COMPILER=%s\n", compilerStr);
@@ -250,6 +309,7 @@ int getPrimitives() {
         fprintf(out,"INCLUDES= "); fprintList(&incSrc);
         fprintf(out,"LNKARGS= "); fprintList(&lnkSrc);
         fprintf(out,"LIBRARIES= "); fprintList(&libsSrc);
+
 
 
         if( getString(":Sources:") == 0) break;
@@ -331,7 +391,7 @@ int scanDependencies(char *src) {
             char *ptr = getIncludeFileFrom(fp);
             if( ptr == NULL) continue;
             char *dirPtr = getDirectory(ptr);
-            /*
+
             if(dirPtr==NULL) {
                 dirPtr = getDirectory(src);
                 sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
@@ -339,10 +399,10 @@ int scanDependencies(char *src) {
             else {
                 sprintf(buf,"%s", ptr);
             }
-            */
 
-            dirPtr = getDirectory(src);
-            sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
+
+            //dirPtr = getDirectory(src);
+            //sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
 
             fprintf(out," %s ",buf);
             scanDependencies(buf);
@@ -377,12 +437,16 @@ int addSrcDependencyAction(char *src) {
 
 int addTargets() {
 
+    pSrcPtr ps;
+
     fputs("\n", out);
 
-    fprintf(out,"%s/%s: %s ",bldDirStr, targetStr, bldDirStr);
+    fprintf(out,".PHONY: startup %s%s%s\n\n", bldDirStr,delim,targetStr);
+
+    fprintf(out,"%s/%s: startup %s ",bldDirStr, targetStr, bldDirStr);
 
 
-    pSrcPtr ps = &baseSrc;
+    ps = &baseSrc;
     for(int i=0;i<numSources;i++) {
         char buf[256];
         sprintf(buf, "%s%s%s.o ", bldDirStr,delim,ps->ptr);
@@ -391,6 +455,10 @@ int addTargets() {
     }
 
     fprintLine();
+
+
+
+
     fprintf(out, "\t$(LINKER) ");
     ps = &baseSrc;
     for(int i=0;i<numSources;i++) {
@@ -410,6 +478,14 @@ int addTargets() {
     fprintStrs(args);
     fprintLine(); fprintLine();
 
+    fprintf(out,"startup:\n");
+    ps = &envSrc;
+    while(ps->ptr != NULL) {
+        fprintf(out,"\t%s\n", ps->ptr);
+        ps = ps->next;
+    }
+    fprintLine();
+    fprintLine();
 
     ps = &baseSrc;
     for(int i=0;i<numSources;i++) {

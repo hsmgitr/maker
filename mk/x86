@@ -1,0 +1,10 @@
+:Target: mkr
+:BuildDirectory: build-x86 
+:Compiler: g++
+:CompilerArguments:  
+:Includes: 
+:Linker: g++
+:LinkerArguments: 
+:Sources: maker/main.cpp maker/mparser.cpp
+:Libraries:
+
