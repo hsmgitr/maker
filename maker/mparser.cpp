@@ -4,9 +4,9 @@
 #include <ctype.h>
 
 #include "mparser.h"
+#include "private/unittest.h"
 
 
-const char* delim = "/";
 
 
 FILE *in, *out;
@@ -41,6 +41,8 @@ void fprintStrs(const char *args[]) {
     }
 
 }
+
+
 
 int getString(const char *str) {
 
@@ -330,6 +332,7 @@ int scanDependencies(char *src) {
             char *ptr = getIncludeFileFrom(fp);
             if( ptr == NULL) continue;
             char *dirPtr = getDirectory(ptr);
+            /*
             if(dirPtr==NULL) {
                 dirPtr = getDirectory(src);
                 sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
@@ -337,6 +340,10 @@ int scanDependencies(char *src) {
             else {
                 sprintf(buf,"%s", ptr);
             }
+            */
+
+            dirPtr = getDirectory(src);
+            sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
 
             fprintf(out," %s ",buf);
             scanDependencies(buf);
