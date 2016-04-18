@@ -376,14 +376,14 @@ int scanDependencies(char *src) {
 
     FILE *fp = fopen(src, "rt");
     if(!fp) {
-        printf("Abort: cannot find %s\n",src );
-        return 0;
+        printf("Warning: cannot find %s, dependency will be skipped\n",src );
+        return 1;
     }
 
 
 
     while(1) {
-        char buf[128];
+        char buf[1024];
         int n = fscanf(fp,"%s",buf);
         if( n <= 0) break;
 
@@ -404,8 +404,8 @@ int scanDependencies(char *src) {
             //dirPtr = getDirectory(src);
             //sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
 
-            fprintf(out," %s ",buf);
-            scanDependencies(buf);
+            if( scanDependencies(buf) == 0)
+                fprintf(out," %s ",buf);
         }
 
     }
