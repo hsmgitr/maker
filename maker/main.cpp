@@ -49,6 +49,7 @@ int main(int argc, char *argv[]) {
         printf("Make file is %s not generated\n", buf);
     }
 
-    fcloseall();
+    // Not working in Windows
+	// fcloseall();
     return 0;
 }
