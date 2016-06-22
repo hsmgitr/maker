@@ -123,8 +123,8 @@ int getLine( ) {
     } while(1);
 
     cbuf[ind] = '\0';
-
-    return 1;
+    if(cbuf[0] == '#') return 1;
+    return 2;
 }
 
 int getArgument(char *buf) {
@@ -225,7 +225,9 @@ int getAllLines(pSrcPtr *ptr) {
 
     pSrcPtr ps= *ptr;
     while(1) {
-        if(getLine() == 0)  break;
+        int res = getLine();
+        if(res == 0)  break;
+        if(res == 1) continue; // comment
 
         int n = strlen(cbuf);
         if(n == 0) return 0;
@@ -372,7 +374,7 @@ char* getIncludeFileFrom(FILE *fp) {
 
 int scanDependencies(char *src) {
 
-    printf("Scanning dependencies in %s\n", src);
+    //printf("Scanning dependencies in %s\n", src);
 
     FILE *fp = fopen(src, "rt");
     if(!fp) {

@@ -7,7 +7,7 @@
 const char *defFile =
 ":Target: \n:Envronment: \n:BuildDirectory: \n:Compiler: \n"
 ":CompilerArguments: \n:Includes: \n:Linker: \n"
-":LinkerArguments: \n:libraries: \n:Sources: \n";
+":LinkerArguments: \n:Libraries: \n:Sources: \n";
 
 
 int main(int argc, char *argv[]) {
