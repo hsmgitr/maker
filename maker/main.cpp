@@ -2,6 +2,10 @@
 #include <string.h>
 #include <stdlib.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#endif
+
 #include "mparser.h"
 
 const char *defFile =
@@ -25,7 +29,11 @@ int main(int argc, char *argv[]) {
 
     FILE *cf = fopen(argv[1],"rt");
     if(!cf) {
+		char *buf;
+		buf = _getcwd(NULL,0);
+		printf("Current directory: %s\n", buf);
         printf("Cannot find %s\n",argv[1]);
+		if (buf) free(buf);
         return 1;
     }
 

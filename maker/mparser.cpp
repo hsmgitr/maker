@@ -6,7 +6,11 @@
 #include "mparser.h"
 
 
+#ifdef _WIN32
+const char *delim = "\\";
+#else
 const char *delim = "/";
+#endif
 
 
 FILE *in, *out;
@@ -151,7 +155,7 @@ int numSources;
 typedef struct SrcPtr_ {
 
     char *ptr;
-    SrcPtr_ *next;
+    SrcPtr_ *next, *cur;
 
 } SrcPtr, *pSrcPtr;
 
@@ -188,17 +192,30 @@ void putSrc(pSrcPtr *psPtr, char *str) {
 
     pSrcPtr ps=*psPtr;
 
-    int n = strlen(str);
-    char *nStr = new char [n+1];
+    int n = strlen(str)+1;
+    char *nStr = new char [n];
     strncpy(nStr, str, n);
 
     ps->ptr = nStr;
     ps->next = new SrcPtr;
-    *psPtr = ps->next;
+	*psPtr = ps->next;
 
 }
 
 
+void freeEntries(pSrcPtr psp) {
+
+	pSrcPtr pp;
+
+	while (1) {
+		if (psp->ptr)  free(psp->ptr);
+		if (psp->next == NULL) break;
+		pp = psp->next;
+		free(psp);
+		psp = pp;
+	}
+
+}
 
 int getAllSources() {
     int r = 0;
@@ -372,14 +389,40 @@ char* getIncludeFileFrom(FILE *fp) {
 }
 
 
-int scanDependencies(char *src) {
+
+int searchIncludePaths(char *fname, pSrcPtr list) {
+
+	char buf[1024];
+
+	while (1) {
+		if (list == NULL) return 1;
+		sprintf(buf, "%s%s%s", &list->ptr[2], delim, fname);
+		if()
+	}
+	
+
+
+	return 0;
+}
+
+
+int scanDependencies(char *src, pSrcPtr iList) {
 
     //printf("Scanning dependencies in %s\n", src);
 
     FILE *fp = fopen(src, "rt");
     if(!fp) {
-        printf("Warning: cannot find %s, dependency will be skipped\n",src );
-        return 1;
+
+		if (searchIncludePaths(src, iList) != 0) {
+			printf("Warning: cannot find %s, dependency will be skipped\n", src);
+			return 1;
+		}
+
+		if (scanDependencies(src, iList) == 0) {
+			fprintf(out, " %s ", src);
+			return 0;
+		}
+
     }
 
 
@@ -406,7 +449,7 @@ int scanDependencies(char *src) {
             //dirPtr = getDirectory(src);
             //sprintf(buf,"%s%s%s", dirPtr,delim,ptr);
 
-            if( scanDependencies(buf) == 0)
+            if( scanDependencies(buf, iList) == 0)
                 fprintf(out," %s ",buf);
         }
 
@@ -425,7 +468,9 @@ int addSrcDependencyAction(char *src) {
     fprintLine();
     fprintf(out, "%s%s%s.o: %s", bldDirStr,delim,src,src);
 
-    scanDependencies(src);
+	SrcPtr fIncludes = { NULL,NULL };
+	fIncludes.cur = &fIncludes;
+	scanDependencies(src, &fIncludes);
 
     fprintLine();
     char *ptr = getDirectory(src);
